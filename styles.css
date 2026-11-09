@@ -1,0 +1,153 @@
+:root{
+  --brown-1: #623E2A;
+  --brown-2: #BD8371;
+  --text-light: #f6efe8;
+}
+*{box-sizing:border-box}
+body,html{height:100%;margin:0;font-family:Montserrat,system-ui,Arial}
+.site-header{background:linear-gradient(90deg,var(--brown-1),var(--brown-2));color:var(--text-light);padding:20px 28px;position:relative;z-index:2000;min-height:72px}
+.nav-list{list-style:none;margin:0;padding:0;display:flex;gap:18px;justify-content:flex-end}
+.nav-list a{color:var(--text-light);text-decoration:none;letter-spacing:5px;font-family:Montserrat,system-ui,Arial;font-size:17px;text-transform:uppercase;padding:8px 10px;display:inline-block}
+.nav-list a.active{font-weight:600}
+.mobile-nav{display:none}
+
+.hero{position:relative;height:72vh;min-height:100%;overflow:hidden}
+.slide{position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;transition:opacity 1s ease}
+.slide.active{opacity:1}
+.hero-overlay{position:fixed;left:0;top:0;width:100vw;height:100vh;pointer-events:none;z-index:1;background:linear-gradient(180deg, rgba(98,62,42,0.25) 0%, rgba(98,62,42,0.45) 70%)}
+.hero-text{position:absolute;left:50%;top:52%;transform:translate(-50%,-50%);z-index:2;text-align:center;color:var(--text-light)}
+.season{letter-spacing:6px;font-size:14px;margin-bottom:12px}
+.title{font-family:'Great Vibes',cursive;font-size:120px;margin:0;line-height:0.85;text-transform:none}
+.subtitle{letter-spacing:4px;margin-top:18px}
+
+.world-clocks{display:grid;grid-template-columns:repeat(3,minmax(180px,1fr));gap:18px;max-width:900px;margin:18px auto 0;padding:0 8px}
+.world-clock{background:linear-gradient(180deg, rgba(98,62,42,0.92), rgba(98,62,42,0.76));color:var(--text-light);border-radius:10px;padding:14px 10px;text-align:center;box-shadow:0 10px 24px rgba(0,0,0,0.16)}
+.world-clock-city{margin:0 0 10px 0;letter-spacing:2px;font-size:16px;text-transform:uppercase}
+.clock-icon{position:relative;width:66px;height:66px;margin:0 auto 10px auto}
+.clock-face{position:absolute;inset:0;border:2px solid rgba(246,239,232,0.95);border-radius:50%;background:radial-gradient(circle at 35% 35%, rgba(246,239,232,0.35), rgba(246,239,232,0.05))}
+.clock-hand{position:absolute;left:50%;bottom:50%;transform-origin:bottom center;border-radius:999px;background:rgba(246,239,232,0.96)}
+.clock-hour{width:4px;height:18px;margin-left:-2px}
+.clock-minute{width:2px;height:25px;margin-left:-1px}
+.clock-center{position:absolute;left:50%;top:50%;width:8px;height:8px;border-radius:50%;margin-left:-4px;margin-top:-4px;background:rgba(246,239,232,0.98)}
+.world-clock-digital{font-size:20px;letter-spacing:1px;font-weight:600}
+.world-clock-date{margin-top:6px;font-size:13px;letter-spacing:1px;opacity:0.96}
+
+.tab-panel{display:none;padding:28px}
+.tab-panel.active{display:block}
+
+.map-container{position:relative;height:70vh}
+#mapid{height:100%;border-radius:6px}
+.map-controls{position:absolute;right:12px;top:12px;z-index:1000}
+.map-controls button{background:var(--brown-1);color:var(--text-light);border:none;padding:8px 12px;border-radius:4px;margin-left:8px}
+.map-controls button:hover{background:var(--brown-2)}
+.map-controls button:focus-visible{outline:2px solid white;outline-offset:2px}
+.plane-icon{font-size:18px;line-height:18px;text-align:center}
+.transport-emoji{font-size:18px}
+
+.flight-line{stroke:#8B5E4A}
+.drive-line{stroke:#C56A32}
+.train-line{stroke:#4A6B8B}
+.boat-line{stroke:#2E8B57}
+
+.editor{max-width:900px;margin:0 auto}
+.editor form{display:flex;gap:12px;flex-wrap:wrap}
+.editor label{flex:1 1 200px;display:flex;flex-direction:column;font-size:14px}
+.editor input{padding:8px;border-radius:4px;border:1px solid #ccc}
+.editor button{background:var(--brown-2);color:var(--text-light);padding:8px 12px;border:none;border-radius:4px}
+.editor ul{list-style:none;padding:0}
+.editor li{padding:8px 0;border-bottom:1px dashed #eee}
+.airport-lookup-row{display:flex;gap:6px}
+.airport-lookup-row input{min-width:0;flex:1}
+.airport-lookup-row button{flex:0 0 auto}
+.airport-lookup-status{flex-basis:100%;min-height:1.2em;font-size:13px;color:var(--brown-1)}
+.airport-data-credit{margin-top:4px;font-size:11px;color:#7a5b4b}
+
+.map-bottom-bar{position:absolute;left:12px;right:12px;bottom:12px;background:rgba(255,250,245,0.9);padding:8px;border-radius:8px;display:flex;align-items:center;gap:12px;z-index:1000}
+.map-bottom-bar input[type=range]{flex:1}
+.transport-display{font-size:14px;color:var(--brown-1)}
+
+/* Styled progress slider to match brown theme */
+#progressSlider{appearance:none;width:100%;height:8px;background:transparent}
+#progressSlider::-webkit-slider-runnable-track{height:8px;background:var(--brown-2);border-radius:8px}
+#progressSlider::-webkit-slider-thumb{-webkit-appearance:none;margin-top:-4px;width:18px;height:18px;border-radius:50%;background:var(--brown-1);box-shadow:0 0 0 3px rgba(189,131,113,0.15)}
+#progressSlider:focus{outline:none}
+#progressSlider::-moz-range-track{height:8px;background:var(--brown-2);border-radius:8px}
+#progressSlider::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--brown-1);border:none}
+
+.editor label{font-size:14px}
+
+@media(max-width:800px){
+  .title{font-size:56px}
+  .site-header{padding:16px;min-height:68px}
+  .site-header nav{display:flex;justify-content:flex-end}
+  .nav-list{display:none}
+  .mobile-nav{display:block;width:110px;max-width:34vw;margin:0;background:rgba(246,239,232,0.12);color:var(--text-light);border:1px solid rgba(246,239,232,0.45);border-radius:6px;padding:9px 10px;font-family:Montserrat,system-ui,Arial;font-size:15px}
+  .mobile-nav option{color:#2b1f18}
+  .world-clocks{grid-template-columns:1fr;max-width:360px;gap:12px}
+  .map-controls{left:8px;right:8px;top:8px;display:flex;justify-content:flex-end}
+  .map-controls button{padding:7px 9px;margin-left:5px}
+  .map-bottom-bar{flex-wrap:wrap}
+  .transport-display{flex-basis:100%}
+  .top-edit-button{left:12px;top:14px;font-size:11px;padding:9px 10px}
+  .editor-heading{align-items:stretch;flex-direction:column}
+  .editor-heading #backToMapBtn{align-self:flex-start}
+}
+
+/* Top-left edit button */
+.top-edit-button{position:absolute;left:18px;top:18px;background:transparent;border:1px solid rgba(246,239,232,0.5);color:var(--text-light);padding:9px 12px;border-radius:6px;font-family:Montserrat,system-ui,Arial;letter-spacing:2px;font-size:13px;text-transform:uppercase;cursor:pointer}
+.top-edit-button:hover{background:rgba(255,250,245,0.03)}
+
+.editor-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}
+.editor-heading h2{margin:0}
+.editor-heading #backToMapBtn{background:var(--brown-1);white-space:nowrap}
+
+@media(max-width:800px){
+  .top-edit-button{left:12px;top:14px;font-size:11px;padding:9px 10px}
+  .editor-heading{align-items:stretch;flex-direction:column}
+  .editor-heading #backToMapBtn{align-self:flex-start}
+}
+
+/* small edit menu under the top edit button */
+.edit-menu{position:absolute;left:12px;top:44px;background:var(--text-light);color:#2b1f18;border-radius:8px;padding:8px;box-shadow:0 6px 18px rgba(0,0,0,0.2);z-index:2500}
+.edit-menu .edit-menu-btn{display:block;background:transparent;border:none;padding:8px 12px;width:220px;text-align:left;border-radius:6px;font-family:Montserrat,system-ui,Arial;cursor:pointer}
+.edit-menu .edit-menu-btn:hover{background:rgba(98,62,42,0.06)}
+
+/* Timeline styles */
+.timeline{margin:18px 0 36px;border-radius:8px;background:var(--brown-1);color:var(--text-light);padding:28px}
+.timeline .heading{text-align:center;font-size:18px;letter-spacing:6px;margin-bottom:18px}
+.timeline-list{display:block;row-gap:8px}
+.timeline-item{display:grid;grid-template-columns:200px 1fr;gap:0 24px;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,250,245,0.05)}
+.timeline-date{font-size:14px;letter-spacing:2px;opacity:0.95;justify-self:start;text-align:left}
+.timeline-event{font-size:14px;text-transform:uppercase;letter-spacing:2px;justify-self:end;text-align:right}
+
+@media(max-width:800px){
+  .timeline{padding:18px}
+}
+
+/* Postcards */
+.postcards-container{padding:18px}
+.postcards-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px}
+.postcard{background:linear-gradient(180deg, rgba(98,62,42,0.06), rgba(98,62,42,0.02));padding:12px;border-radius:8px;color:#2b1f18;cursor:pointer;transition:transform .18s ease, box-shadow .18s ease;display:flex;justify-content:center;align-items:center}
+.postcard:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(98,62,42,0.12)}
+.postcard img{width:min(100%,300px);height:auto;max-height:none;object-fit:contain;border-radius:6px;display:block;margin:0 auto}
+.postcards-list-empty{padding:28px;text-align:center;color:#7a5b4b}
+
+.editor label{display:block;margin-bottom:8px}
+#imagePreview img{width:80px;height:80px;object-fit:cover;border-radius:6px;border:1px solid rgba(0,0,0,0.06)}
+#postcardsEditorList li{padding:8px 0;border-bottom:1px dashed #eee}
+#postcardsEditorList button{margin-left:8px}
+
+.postcard-modal{position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;z-index:2600;padding:18px}
+.postcard-modal-content{width:min(860px,100%);max-height:90vh;overflow:auto;background:#fff9f4;border-radius:10px;padding:18px;box-shadow:0 12px 36px rgba(0,0,0,0.3)}
+.postcard-modal-close{background:var(--brown-1);color:var(--text-light);border:none;padding:8px 12px;border-radius:6px;float:right}
+#postcardModalCover{width:100%;max-height:360px;object-fit:cover;border-radius:8px;margin-top:12px}
+#postcardModalTitle{margin:12px 0 4px 0;color:#2b1f18;letter-spacing:2px;text-transform:uppercase}
+.postcard-modal-dates{color:var(--brown-1);font-size:14px;letter-spacing:1px;margin-bottom:10px}
+#postcardModalText{color:#3b2b23;line-height:1.5}
+.postcard-modal-images{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:12px}
+.postcard-modal-images img{width:100%;height:140px;object-fit:cover;border-radius:8px}
+
+/* Current weather below each city date */
+.world-clock-weather{margin-top:10px;font-size:14px;line-height:1.6;min-height:2.8em}
+.weather-credit{position:relative;z-index:2;text-align:center;margin-top:12px;font-size:11px;color:var(--brown-1)}
+.weather-credit a{color:inherit;text-underline-offset:2px}

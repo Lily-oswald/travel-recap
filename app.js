@@ -1,0 +1,1102 @@
+// Basic tab routing
+function showTab(tab){
+  activateTab(tab);
+}
+
+function activateTab(tab){
+  document.querySelectorAll('.tab-link').forEach(l=>l.classList.remove('active'));
+  const navLink = document.querySelector('.tab-link[data-tab="'+tab+'"]');
+  if(navLink) navLink.classList.add('active');
+  const mobileNav = document.getElementById('mobileNav');
+  if(mobileNav && mobileNav.value !== tab) mobileNav.value = tab;
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  const panel = document.getElementById(tab);
+  if(panel) panel.classList.add('active');
+  if(tab==='map') setTimeout(()=>{initMapIfNeeded()},50);
+}
+
+document.querySelectorAll('.tab-link').forEach(link=>{
+  link.addEventListener('click', e=>{
+    e.preventDefault();
+      showTab(link.dataset.tab);
+  });
+});
+
+const mobileNav = document.getElementById('mobileNav');
+if(mobileNav){
+  mobileNav.addEventListener('change', ()=>{
+    showTab(mobileNav.value);
+  });
+}
+
+// Slideshow
+// Slideshow - populate from manifest if available, otherwise use defaults embedded earlier
+let slides = [];
+let cur = 0;
+function createSlide(url){
+  const d = document.createElement('div'); d.className='slide'; d.style.backgroundImage = `url('${url}')`;
+  return d;
+}
+async function loadSlides(){
+  const container = document.getElementById('slideshow');
+  if(!container) return;
+  container.innerHTML = '';
+  // try manifest
+  try{
+    const res = await fetch('assets/images/manifest.json');
+    if(res.ok){
+      const list = await res.json();
+      if(Array.isArray(list) && list.length>0){
+        list.forEach(p=>{ const url = 'assets/images/'+p; const s=createSlide(url); container.appendChild(s); });
+      }
+    }
+  }catch(e){/* ignore */}
+  // if still empty, fallback to a few remote photos
+  if(container.children.length===0){
+    const defaults = [
+      'https://images.unsplash.com/photo-1508051123993-3d1b1d7f14a9?auto=format&fit=crop&w=1600&q=60',
+      'https://images.unsplash.com/photo-1504198266280-5f07b8d7f6f3?auto=format&fit=crop&w=1600&q=60',
+      'https://images.unsplash.com/photo-1528909514045-2fa4ac7a08ba?auto=format&fit=crop&w=1600&q=60'
+    ];
+    defaults.forEach(u=>{ container.appendChild(createSlide(u)); });
+  }
+  slides = Array.from(container.querySelectorAll('.slide'));
+  if(slides.length>0) showSlide(0);
+}
+
+function showSlide(i){
+  slides.forEach(s=>s.classList.remove('active'));
+  if(slides[i]) slides[i].classList.add('active');
+}
+
+function startSlideshow(){
+  if(!slides || slides.length<=1) return;
+  setInterval(()=>{ cur=(cur+1)%slides.length; showSlide(cur); },5000);
+}
+
+loadSlides().then(startSlideshow).catch(()=>{});
+
+// Home world clocks
+function initWorldClocks(){
+  const clockCards = Array.from(document.querySelectorAll('.world-clock'));
+  if(clockCards.length===0) return;
+
+  clockCards.forEach(card=>{
+    const zone = card.dataset.timezone;
+    card._clockFormatters = {
+      time: new Intl.DateTimeFormat('en-US', {
+        timeZone: zone,
+        hour: 'numeric',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+      }),
+      date: new Intl.DateTimeFormat('en-US', {
+        timeZone: zone,
+        weekday: 'short',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric'
+      }),
+      parts: new Intl.DateTimeFormat('en-US', {
+        timeZone: zone,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      })
+    };
+  });
+
+  function updateWorldClocks(){
+    const now = new Date();
+    clockCards.forEach(card=>{
+      const fmts = card._clockFormatters;
+      const timeEl = card.querySelector('[data-role="time"]');
+      const dateEl = card.querySelector('[data-role="date"]');
+      const hourHand = card.querySelector('.clock-hour');
+      const minuteHand = card.querySelector('.clock-minute');
+
+      if(timeEl) timeEl.textContent = fmts.time.format(now).toUpperCase();
+      if(dateEl) dateEl.textContent = fmts.date.format(now);
+
+      const parts = fmts.parts.formatToParts(now);
+      const hour = parseInt(parts.find(p=>p.type==='hour')?.value || '0', 10);
+      const minute = parseInt(parts.find(p=>p.type==='minute')?.value || '0', 10);
+      const second = parseInt(parts.find(p=>p.type==='second')?.value || '0', 10);
+
+      const hourDegrees = ((hour % 12) + minute / 60) * 30;
+      const minuteDegrees = (minute + second / 60) * 6;
+
+      if(hourHand) hourHand.style.transform = `rotate(${hourDegrees}deg)`;
+      if(minuteHand) minuteHand.style.transform = `rotate(${minuteDegrees}deg)`;
+    });
+  }
+
+  updateWorldClocks();
+  setInterval(updateWorldClocks, 1000);
+}
+
+initWorldClocks();
+
+// Current conditions from Open-Meteo, refreshed every 15 minutes.
+function weatherDescription(code){
+  const descriptions = {
+    0: 'Clear sky', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast',
+    45: 'Fog', 48: 'Freezing fog',
+    51: 'Light drizzle', 53: 'Drizzle', 55: 'Heavy drizzle',
+    56: 'Light freezing drizzle', 57: 'Freezing drizzle',
+    61: 'Light rain', 63: 'Rain', 65: 'Heavy rain',
+    66: 'Light freezing rain', 67: 'Freezing rain',
+    71: 'Light snow', 73: 'Snow', 75: 'Heavy snow', 77: 'Snow grains',
+    80: 'Light showers', 81: 'Rain showers', 82: 'Heavy showers',
+    85: 'Light snow showers', 86: 'Heavy snow showers',
+    95: 'Thunderstorm', 96: 'Thunderstorm with hail', 99: 'Thunderstorm with heavy hail'
+  };
+  return descriptions[code] || 'Conditions unavailable';
+}
+
+async function updateWorldWeather(){
+  await Promise.all(Array.from(document.querySelectorAll('.world-clock')).map(async card=>{
+    const weatherEl = card.querySelector('[data-role="weather"]');
+    if(!weatherEl) return;
+    const controller = new AbortController();
+    const timeout = setTimeout(()=>controller.abort(), 10000);
+    try{
+      const params = new URLSearchParams({
+        latitude: card.dataset.latitude,
+        longitude: card.dataset.longitude,
+        current: 'temperature_2m,weather_code',
+        temperature_unit: 'celsius'
+      });
+      const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`, {
+        signal: controller.signal
+      });
+      if(!response.ok) throw new Error('Weather request failed');
+      const data = await response.json();
+      const temperature = data.current?.temperature_2m;
+      if(!Number.isFinite(temperature)) throw new Error('Missing temperature');
+      const fahrenheit = Math.round(temperature * 9 / 5 + 32);
+      weatherEl.textContent = `${fahrenheit}°F / ${Math.round(temperature)}°C · ${weatherDescription(data.current.weather_code)}`;
+    }catch(e){
+      weatherEl.textContent = 'Weather unavailable';
+    }finally{
+      clearTimeout(timeout);
+    }
+  }));
+}
+
+updateWorldWeather();
+setInterval(updateWorldWeather, 15 * 60 * 1000);
+
+// Map and flights
+let mapInitialized = false;
+let map, flightsLayer;
+const DEFAULT_MAP_ZOOM = 5;
+let flightMarkers = [];
+let flightPolylines = [];
+const defaultFlights = [
+  {from:'Chicago',to:'Barcelona',type:'flight',date:'2027-03-10',fromCoords:[41.8781,-87.6298],toCoords:[41.3851,2.1734]},
+  {from:'Barcelona',to:'Athens',type:'flight',date:'2027-03-20',fromCoords:[41.3851,2.1734],toCoords:[37.9838,23.7275]},
+  {from:'Athens',to:'Chicago',type:'flight',date:'2027-04-02',fromCoords:[37.9838,23.7275],toCoords:[41.8781,-87.6298]}
+];
+
+function sortFlightsChronologically(flights){
+  return Array.from(flights || []).sort((a,b)=>{
+    const aDate = a && a.date ? a.date : null;
+    const bDate = b && b.date ? b.date : null;
+    if(!aDate && !bDate) return 0;
+    if(!aDate) return 1;
+    if(!bDate) return -1;
+    return aDate.localeCompare(bDate);
+  });
+}
+
+function loadFlights(){
+  const raw = localStorage.getItem('flights');
+  if(!raw) {
+    const flights = sortFlightsChronologically(defaultFlights);
+    localStorage.setItem('flights', JSON.stringify(flights));
+    return flights;
+  }
+  try{
+    const parsed = JSON.parse(raw);
+    if(!Array.isArray(parsed)) throw new Error('Invalid flights data');
+    const flights = sortFlightsChronologically(parsed);
+    // Keep older saved data normalized after the next load as well.
+    if(JSON.stringify(flights)!==raw) localStorage.setItem('flights', JSON.stringify(flights));
+    return flights;
+  }catch(e){
+    const flights = sortFlightsChronologically(defaultFlights);
+    localStorage.setItem('flights', JSON.stringify(flights));
+    return flights;
+  }
+}
+
+function saveFlights(flights){
+  localStorage.setItem('flights', JSON.stringify(sortFlightsChronologically(flights)));
+}
+
+function initMapIfNeeded(){
+  if(mapInitialized) return;
+  mapInitialized = true;
+  map = L.map('mapid',{scrollWheelZoom:false}).setView([40,0],2);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap contributors'}).addTo(map);
+  flightsLayer = L.layerGroup().addTo(map);
+  // single click zoom to the clicked location at a sensible default zoom level
+  map.on('click', (e)=>{ try{ if(e && e.latlng) map.setView(e.latlng, DEFAULT_MAP_ZOOM); }catch(e){} });
+  renderFlights();
+  // wire the progress slider to adjust brown intensity
+  const slider = document.getElementById('progressSlider');
+  if(slider){
+    slider.addEventListener('input', ()=>{
+      const max = parseFloat(slider.max) || 100;
+      const val = parseFloat(slider.value) || 0;
+      const pct = max>0 ? Math.min(1, val/max) : Math.min(1, val/100);
+      updateMapBrownsByProgress(pct);
+    });
+    // initialize based on current slider
+    const initMax = parseFloat(slider.max) || 100;
+    const initVal = parseFloat(slider.value) || 0;
+    updateMapBrownsByProgress(initMax>0 ? Math.min(1, initVal/initMax) : Math.min(1, initVal/100));
+  }
+  // fitBounds button removed — map controls simplified
+  document.getElementById('playFlights').addEventListener('click', ()=>{ toggleFlightAnimation(); });
+  document.getElementById('previousFlight').addEventListener('click', ()=>{ changePlaybackLeg(-1); });
+  document.getElementById('nextFlight').addEventListener('click', ()=>{ changePlaybackLeg(1); });
+}
+
+// The only editing function exposed in the UI is travel-path editing.
+const topEditBtn = document.getElementById('topEditBtn');
+const editMenu = document.getElementById('editMenu');
+if(topEditBtn){
+  topEditBtn.addEventListener('click', ()=>{
+    showTab('edit');
+  });
+}
+
+const backToMapBtn = document.getElementById('backToMapBtn');
+if(backToMapBtn){
+  backToMapBtn.addEventListener('click', ()=>showTab('map'));
+}
+
+// Menu buttons
+const menuEditMap = document.getElementById('menuEditMap');
+const menuEditPostcards = document.getElementById('menuEditPostcards');
+if(menuEditMap){ menuEditMap.addEventListener('click', ()=>{ if(editMenu) editMenu.style.display='none'; showTab('edit'); }); }
+if(menuEditPostcards){ menuEditPostcards.addEventListener('click', ()=>{ if(editMenu) editMenu.style.display='none'; showTab('postcard-editor'); }); }
+
+// Hide menu when clicking outside
+document.addEventListener('click', (e)=>{
+  if(!editMenu) return;
+  const target = e.target;
+  if(target===topEditBtn || topEditBtn.contains(target) || editMenu.contains(target)) return;
+  if(editMenu.style.display==='block') editMenu.style.display='none';
+});
+
+function greatCirclePoints(fromCoords, toCoords, segments=160){
+  const toRadians = degrees=>degrees * Math.PI / 180;
+  const toDegrees = radians=>radians * 180 / Math.PI;
+  const lat1 = toRadians(fromCoords[0]);
+  const lon1 = toRadians(fromCoords[1]);
+  const lat2 = toRadians(toCoords[0]);
+  const lon2 = toRadians(toCoords[1]);
+  const angle = 2 * Math.asin(Math.sqrt(
+    Math.sin((lat2-lat1)/2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin((lon2-lon1)/2) ** 2
+  ));
+
+  if(angle < 0.000001) return [fromCoords, toCoords];
+  const sinAngle = Math.sin(angle);
+  const points = [];
+  let previousLongitude = fromCoords[1];
+  for(let i=0; i<=segments; i++){
+    const fraction = i / segments;
+    const a = Math.sin((1-fraction) * angle) / sinAngle;
+    const b = Math.sin(fraction * angle) / sinAngle;
+    const x = a * Math.cos(lat1) * Math.cos(lon1) + b * Math.cos(lat2) * Math.cos(lon2);
+    const y = a * Math.cos(lat1) * Math.sin(lon1) + b * Math.cos(lat2) * Math.sin(lon2);
+    const z = a * Math.sin(lat1) + b * Math.sin(lat2);
+    const latitude = toDegrees(Math.atan2(z, Math.sqrt(x*x + y*y)));
+    let longitude = toDegrees(Math.atan2(y, x));
+    while(longitude - previousLongitude > 180) longitude -= 360;
+    while(longitude - previousLongitude < -180) longitude += 360;
+    points.push([latitude, longitude]);
+    previousLongitude = longitude;
+  }
+  return points;
+}
+
+function routeDistanceKm(fromCoords, toCoords){
+  const toRadians = degrees=>degrees * Math.PI / 180;
+  const lat1 = toRadians(fromCoords[0]);
+  const lat2 = toRadians(toCoords[0]);
+  const deltaLat = lat2 - lat1;
+  const deltaLon = toRadians(toCoords[1] - fromCoords[1]);
+  const a = Math.sin(deltaLat/2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon/2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function transportColor(type){
+  if(type==='drive') return '#C56A32';
+  if(type==='train') return '#4A6B8B';
+  if(type==='boat') return '#2E8B57';
+  return '#8B5E4A';
+}
+
+function transportEmoji(type){
+  if(type==='drive') return '🚗';
+  if(type==='train') return '🚆';
+  if(type==='boat') return '⛴️';
+  return '✈️';
+}
+
+function renderFlights(){
+  flightsLayer.clearLayers();
+  flightMarkers = [];
+  flightPolylines = [];
+  const flights = loadFlights();
+  // place unique location pins
+  const locMap = {};
+  flights.forEach(f=>{
+    locMap[f.fromCoords.join(',')] = {name:f.from, code:f.fromAirportCode, coords:f.fromCoords};
+    locMap[f.toCoords.join(',')] = {name:f.to, code:f.toAirportCode, coords:f.toCoords};
+  });
+  Object.values(locMap).forEach(location=>{
+    const mk = L.circleMarker(location.coords, {
+      radius: 6,
+      fillColor: '#BD8371',
+      color: '#623E2A',
+      weight: 1,
+      fillOpacity: 1
+    }).addTo(flightsLayer);
+    const popup = document.createElement('div');
+    const title = document.createElement('strong');
+    title.textContent = location.code ? `${location.code} · ${location.name}` : location.name;
+    const coords = document.createElement('div');
+    coords.textContent = `${location.coords[0].toFixed(4)}, ${location.coords[1].toFixed(4)}`;
+    popup.append(title, coords);
+    mk.bindPopup(popup);
+    if(location.code) mk.bindTooltip(location.code, {direction:'top', offset:[0,-6]});
+    flightMarkers.push(mk);
+  });
+  // draw legs
+  flights.forEach(f=>{
+    const p1 = f.fromCoords;
+    const p2 = f.toCoords;
+    const color = transportColor(f.type);
+    const pl = L.polyline(greatCirclePoints(p1, p2),{color:color,weight:3,opacity:0}).addTo(flightsLayer);
+    flightPolylines.push(pl);
+  });
+  // update timeline below the map
+  renderTimeline(flights);
+}
+
+function formatDateLabel(dstr){
+  if(!dstr) return 'TBD';
+  try{
+    const d = new Date(dstr+'T00:00:00');
+    const opts = {month:'short', day:'numeric', year:'numeric'};
+    const parts = new Intl.DateTimeFormat('en', opts).format(d).toUpperCase().split(' ');
+    // convert 'Mar 5, 2027' -> 'MAR 5 2027'
+    return parts.join(' ');
+  }catch(e){ return dstr; }
+}
+
+function formatRangeLabel(startStr, endStr){
+  if(!startStr && !endStr) return 'TBD';
+  if(!endStr) return formatDateLabel(startStr);
+  try{
+    const s = new Date(startStr+'T00:00:00');
+    const e = new Date(endStr+'T00:00:00');
+    const optsNoYear = {month:'short', day:'numeric'};
+    const optsWithYear = {month:'short', day:'numeric', year:'numeric'};
+    if(s.getFullYear() === e.getFullYear()){
+      const sLbl = new Intl.DateTimeFormat('en', optsNoYear).format(s).toUpperCase();
+      const eLbl = new Intl.DateTimeFormat('en', optsWithYear).format(e).toUpperCase();
+      // eLbl already has year; produce: 'JAN 4 - FEB 13 2027'
+      const eParts = eLbl.split(' ');
+      const eYear = eParts[eParts.length-1];
+      const eNoYear = eParts.slice(0,eParts.length-1).join(' ');
+      return `${sLbl} - ${eNoYear} ${eYear}`;
+    } else {
+      const sLbl = new Intl.DateTimeFormat('en', optsWithYear).format(s).toUpperCase();
+      const eLbl = new Intl.DateTimeFormat('en', optsWithYear).format(e).toUpperCase();
+      return `${sLbl} - ${eLbl}`;
+    }
+  }catch(e){ return (startStr||'') + (endStr?(' - '+endStr):''); }
+}
+
+function renderTimeline(flights){
+  const container = document.getElementById('timeline');
+  if(!container) return;
+  container.innerHTML = '';
+  const heading = document.createElement('div'); heading.className='heading'; heading.textContent='FULL SCHEDULE';
+  container.appendChild(heading);
+  const list = document.createElement('div'); list.className='timeline-list';
+
+  // sort flights by date, put TBD last
+  const ordered = Array.from(flights).sort((a,b)=>{
+    if(!a.date) return 1; if(!b.date) return -1;
+    return new Date(a.date) - new Date(b.date);
+  });
+
+  // Show only travel legs. Do not infer or display stays between them.
+  if(ordered.length===0){
+    const p = document.createElement('div'); p.className='timeline-item'; p.textContent='No scheduled travel yet.'; list.appendChild(p);
+  } else {
+    for(let i=0;i<ordered.length;i++){
+      const cur = ordered[i];
+      // Flight event
+      const flightItem = document.createElement('div'); flightItem.className='timeline-item';
+      const flightDateEl = document.createElement('div'); flightDateEl.className='timeline-date';
+      flightDateEl.textContent = cur.date ? formatDateLabel(cur.date) : 'TBD';
+      const flightEv = document.createElement('div'); flightEv.className='timeline-event';
+      flightEv.textContent = (cur.date || true) ? ((cur.type==='flight')? `FLY TO ${cur.to.toUpperCase()}` : `${(cur.type||'TRAVEL').toUpperCase()} TO ${cur.to.toUpperCase()}`) : 'TBD';
+      flightItem.appendChild(flightDateEl); flightItem.appendChild(flightEv);
+      list.appendChild(flightItem);
+
+    }
+  }
+
+  // If no flights, show placeholder
+  if(ordered.length===0){
+    const p = document.createElement('div'); p.className='timeline-item'; p.textContent='No scheduled travel yet.'; list.appendChild(p);
+  }
+
+  container.appendChild(list);
+}
+
+// Compute a darker shade by mixing towards black. amount: 0..1
+function darkenHex(hex, amount){
+  const hc = hex.replace('#','');
+  const r = parseInt(hc.substring(0,2),16);
+  const g = parseInt(hc.substring(2,4),16);
+  const b = parseInt(hc.substring(4,6),16);
+  const nr = Math.max(0, Math.round(r*(1-amount)));
+  const ng = Math.max(0, Math.round(g*(1-amount)));
+  const nb = Math.max(0, Math.round(b*(1-amount)));
+  return '#'+[nr,ng,nb].map(v=>v.toString(16).padStart(2,'0')).join('');
+}
+
+function updateMapBrownsByProgress(percent){
+  // percent 0..1 -> map via sqrt to make small slider movements more visible, up to 90% darkening
+  const pct = Math.min(1, Math.max(0, percent));
+  const scale = Math.sqrt(pct) * 0.9;
+  const baseFill = '#BD8371';
+  const baseStroke = '#623E2A';
+  const basePoly = '#8B5E4A';
+  const newFill = darkenHex(baseFill, scale);
+  const newStroke = darkenHex(baseStroke, scale);
+  const newPoly = darkenHex(basePoly, scale);
+  // update markers
+  flightMarkers.forEach(mk=>{
+    try{ mk.setStyle({fillColor:newFill, color:newStroke}); }catch(e){}
+  });
+  // update polylines
+  flightPolylines.forEach(pl=>{
+    try{ pl.setStyle({color:newPoly}); }catch(e){}
+  });
+  // also update slider thumb/track subtly by setting a CSS var used in styles
+  document.documentElement.style.setProperty('--brown-1', newStroke);
+  document.documentElement.style.setProperty('--brown-2', newFill);
+}
+
+// Animation state
+let isAnimating = false;
+let isPaused = false;
+let playbackIndex = 0;
+let playbackRunId = 0;
+let animMarker = null;
+let animLine = null;
+const PLAYBACK_SPEED_KM_PER_SECOND = 1000;
+
+function createTransportIcon(type){
+  const emoji = transportEmoji(type);
+  return L.divIcon({className:'plane-icon', html:`<span class="transport-emoji">${emoji}</span>`, iconSize:[28,28]});
+}
+
+function transportPlaybackLabel(leg){
+  const type = leg.type || 'flight';
+  const emoji = transportEmoji(type);
+  const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
+  let dateLabel = '';
+  if(leg.date){
+    try{
+      const date = new Date(`${leg.date}T00:00:00`);
+      dateLabel = new Intl.DateTimeFormat('en', {month:'short', day:'numeric'}).format(date);
+    }catch(e){}
+  }
+  const fromLabel = leg.fromAirportCode ? `${leg.fromAirportCode} (${leg.from})` : leg.from;
+  const toLabel = leg.toAirportCode ? `${leg.toAirportCode} (${leg.to})` : leg.to;
+  return `${emoji} ${typeLabel} · ${fromLabel} → ${toLabel}${dateLabel ? ` · ${dateLabel}` : ''}`;
+}
+
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+function focusMapOnLeg(routePoints){
+  return new Promise(resolve=>{
+    let settled = false;
+    const finish = ()=>{
+      if(settled) return;
+      settled = true;
+      map.off('moveend', finish);
+      resolve();
+    };
+
+    map.once('moveend', finish);
+    map.flyToBounds(routePoints, {
+      padding: [60, 60],
+      maxZoom: 7,
+      animate: true,
+      duration: 1.1
+    });
+
+    // Leaflet may skip moveend when the requested view is already active.
+    setTimeout(finish, 1400);
+  });
+}
+
+async function waitWhilePlaybackPaused(runId){
+  while(isPaused && runId===playbackRunId) await sleep(60);
+}
+
+async function animateFlightsSequentially(startIndex=0, runId=playbackRunId){
+  const flights = loadFlights();
+  if(flights.length===0) return;
+  flightPolylines.forEach((line, index)=>line.setStyle({opacity:index < startIndex ? 0.9 : 0}));
+  // compute total steps for slider
+  const stepsPerLeg = 160;
+  const totalSteps = flights.length * stepsPerLeg;
+  const slider = document.getElementById('progressSlider');
+  slider.max = totalSteps;
+  slider.value = startIndex * stepsPerLeg;
+  document.getElementById('currentTransport').textContent = '';
+
+
+  // create animation marker and line
+  if(animMarker){ map.removeLayer(animMarker); animMarker=null; }
+  if(animLine){ map.removeLayer(animLine); animLine=null; }
+  animMarker = L.marker(flights[startIndex].fromCoords,{icon:createTransportIcon(flights[startIndex].type),zIndexOffset:1000}).addTo(map);
+  animLine = L.polyline([], {color:'#FFDAB9',weight:4,opacity:0.95}).addTo(map);
+
+  let stepCounter = startIndex * stepsPerLeg;
+  for(let idx=startIndex; idx<flights.length && isAnimating && runId===playbackRunId; idx++){
+    await waitWhilePlaybackPaused(runId);
+    if(!isAnimating || runId!==playbackRunId) break;
+    playbackIndex = idx;
+    const f = flights[idx];
+    const routePoints = greatCirclePoints(f.fromCoords, f.toCoords, stepsPerLeg);
+    const duration = routeDistanceKm(f.fromCoords, f.toCoords) / PLAYBACK_SPEED_KM_PER_SECOND * 1000;
+    document.getElementById('currentTransport').textContent = transportPlaybackLabel(f);
+    await focusMapOnLeg(routePoints);
+    if(!isAnimating || runId!==playbackRunId) break;
+    await waitWhilePlaybackPaused(runId);
+    animLine.setLatLngs([]);
+    animLine.setStyle({color: transportColor(f.type)});
+    animMarker.setIcon(createTransportIcon(f.type));
+    const stepTime = duration / Math.max(1, routePoints.length - 1);
+    for(let i=0;i<routePoints.length && isAnimating && runId===playbackRunId;i++){
+      await waitWhilePlaybackPaused(runId);
+      if(!isAnimating || runId!==playbackRunId) break;
+      animMarker.setLatLng(routePoints[i]);
+      const pts = animLine.getLatLngs(); pts.push(routePoints[i]); animLine.setLatLngs(pts);
+      stepCounter++;
+      slider.value = Math.min(stepCounter, totalSteps);
+      await sleep(stepTime);
+    }
+    if(isAnimating && runId===playbackRunId && flightPolylines[idx]){
+      flightPolylines[idx].setStyle({opacity:0.9});
+    }
+    // small pause between legs
+    await sleep(300);
+  }
+
+  if(runId!==playbackRunId) return;
+  // animation finished or cancelled
+  isAnimating = false;
+  isPaused = false;
+  playbackIndex = 0;
+  const btn = document.getElementById('playFlights'); btn.textContent = 'Play';
+  // remove anim marker and line
+  if(animMarker){ map.removeLayer(animMarker); animMarker=null; }
+  if(animLine){ map.removeLayer(animLine); animLine=null; }
+  // reset slider and transport display
+  slider.value = slider.max;
+  document.getElementById('currentTransport').textContent = '—';
+}
+
+function toggleFlightAnimation(){
+  const btn = document.getElementById('playFlights');
+  if(isAnimating){
+    isPaused = !isPaused;
+    btn.textContent = isPaused ? 'Resume' : 'Pause';
+  } else {
+    startPlaybackAt(playbackIndex);
+  }
+}
+
+function startPlaybackAt(index){
+  const flights = loadFlights();
+  if(flights.length===0) return;
+  playbackIndex = Math.max(0, Math.min(index, flights.length-1));
+  const runId = ++playbackRunId;
+  isAnimating = true;
+  isPaused = false;
+  document.getElementById('playFlights').textContent = 'Pause';
+  animateFlightsSequentially(playbackIndex, runId).catch(()=>{
+    if(runId===playbackRunId && isAnimating){
+      isAnimating = false;
+      isPaused = false;
+      document.getElementById('playFlights').textContent = 'Play';
+    }
+  });
+}
+
+function changePlaybackLeg(direction){
+  const flights = loadFlights();
+  if(flights.length===0) return;
+  const target = Math.max(0, Math.min(playbackIndex + direction, flights.length-1));
+  startPlaybackAt(target);
+}
+
+// no saved view — we won't change the user's map view during animation
+
+// Editor UI
+const flightForm = document.getElementById('flightForm');
+const flightsList = document.getElementById('flightsList');
+const submitBtn = document.getElementById('submitBtn');
+const cancelBtn = document.getElementById('cancelEdit');
+const airportLookupStatus = document.getElementById('airportLookupStatus');
+let editingIndex = null;
+
+function airportDisplayName(result, fallbackCode){
+  const address = result.address || {};
+  return address.city || address.town || address.municipality ||
+    address.county || result.name || `${fallbackCode} Airport`;
+}
+
+async function lookupAirport(codeField, cityField, coordsField){
+  const codeInput = flightForm.elements[codeField];
+  const code = String(codeInput.value || '').trim().toUpperCase();
+  codeInput.value = code;
+  if(!/^[A-Z]{3}$/.test(code)){
+    airportLookupStatus.textContent = 'Enter a valid 3-letter IATA airport code.';
+    codeInput.focus();
+    return;
+  }
+
+  airportLookupStatus.textContent = `Looking up ${code}…`;
+  try{
+    const params = new URLSearchParams({
+      q: `${code} airport`,
+      format: 'jsonv2',
+      addressdetails: '1',
+      limit: '5'
+    });
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+      headers: {'Accept': 'application/json'}
+    });
+    if(!response.ok) throw new Error('Airport lookup request failed');
+    const results = await response.json();
+    const result = results.find(item=>{
+      const text = `${item.name || ''} ${item.display_name || ''}`.toUpperCase();
+      return text.includes(code) || item.type === 'aerodrome';
+    }) || results[0];
+    const lat = Number(result && result.lat);
+    const lon = Number(result && result.lon);
+    if(!result || !Number.isFinite(lat) || !Number.isFinite(lon)){
+      throw new Error(`No airport found for ${code}`);
+    }
+
+    flightForm.elements[cityField].value = airportDisplayName(result, code);
+    flightForm.elements[coordsField].value = `${lat.toFixed(6)},${lon.toFixed(6)}`;
+    airportLookupStatus.textContent = `Found ${result.display_name || code}.`;
+  }catch(e){
+    airportLookupStatus.textContent = `${e.message}. Check the code or enter the coordinates manually.`;
+  }
+}
+
+document.getElementById('lookupFromAirport').addEventListener('click', ()=>{
+  lookupAirport('fromAirportCode', 'from', 'fromCoords');
+});
+document.getElementById('lookupToAirport').addEventListener('click', ()=>{
+  lookupAirport('toAirportCode', 'to', 'toCoords');
+});
+
+function renderFlightsList(){
+  const flights = loadFlights();
+  flightsList.innerHTML = '';
+  flights.forEach((f,idx)=>{
+    const li = document.createElement('li');
+    const dateLabel = f.endDate ? (`[${f.date || 'TBD'} - ${f.endDate}] `) : (f.date ? (`[${f.date}] `) : '');
+    li.textContent = `${dateLabel}${f.from} → ${f.to}  (${f.type || 'flight'})`;
+    const edit = document.createElement('button'); edit.textContent='Edit'; edit.style.marginLeft='8px';
+    edit.addEventListener('click',()=>{ populateFormForEdit(idx); });
+    const del = document.createElement('button'); del.textContent='Delete'; del.style.marginLeft='8px';
+    del.addEventListener('click',()=>{ const flights = loadFlights(); flights.splice(idx,1); saveFlights(flights); renderFlightsList(); renderFlights(); });
+    li.appendChild(edit);
+    li.appendChild(del);
+    flightsList.appendChild(li);
+  });
+}
+renderFlightsList();
+
+function populateFormForEdit(idx){
+  const flights = loadFlights();
+  const f = flights[idx];
+  flightForm.elements['from'].value = f.from;
+  flightForm.elements['to'].value = f.to;
+  flightForm.elements['fromAirportCode'].value = f.fromAirportCode || '';
+  flightForm.elements['toAirportCode'].value = f.toAirportCode || '';
+  flightForm.elements['type'].value = f.type || 'flight';
+  flightForm.elements['date'].value = f.date || '';
+  flightForm.elements['endDate'].value = f.endDate || '';
+  flightForm.elements['fromCoords'].value = f.fromCoords.join(',');
+  flightForm.elements['toCoords'].value = f.toCoords.join(',');
+  editingIndex = idx;
+  submitBtn.textContent = 'Update';
+  cancelBtn.style.display = 'inline-block';
+}
+
+cancelBtn.addEventListener('click', ()=>{
+  editingIndex = null; flightForm.reset(); submitBtn.textContent='Add'; cancelBtn.style.display='none';
+});
+
+flightForm.addEventListener('submit', e=>{
+  e.preventDefault();
+  const fd = new FormData(flightForm);
+  const from = fd.get('from').trim();
+  const to = fd.get('to').trim();
+  const fromAirportCode = String(fd.get('fromAirportCode') || '').trim().toUpperCase();
+  const toAirportCode = String(fd.get('toAirportCode') || '').trim().toUpperCase();
+  const type = fd.get('type') || 'flight';
+  const date = fd.get('date') || '';
+  const endDate = fd.get('endDate') || '';
+  const fromCoords = fd.get('fromCoords').split(',').map(s=>parseFloat(s.trim()));
+  const toCoords = fd.get('toCoords').split(',').map(s=>parseFloat(s.trim()));
+  if(fromCoords.length!==2||toCoords.length!==2||fromCoords.some(isNaN)||toCoords.some(isNaN)){ alert('Please enter valid coordinates.'); return; }
+  const flights = loadFlights();
+  const obj = {from,to,fromAirportCode,toAirportCode,type,date,endDate,fromCoords,toCoords};
+  if(editingIndex!==null){ flights[editingIndex] = obj; editingIndex = null; submitBtn.textContent='Add'; cancelBtn.style.display='none'; }
+  else { flights.push(obj); }
+  saveFlights(flights);
+  renderFlightsList();
+  renderFlights();
+  flightForm.reset();
+});
+
+// If the page loads with map hash, initialize
+if(location.hash==='#map'){ showTab('map'); }
+
+// Download and upload travel paths as a repository-friendly JSON file.
+const downloadFlightsBtn = document.getElementById('downloadFlightsBtn');
+const uploadFlightsBtn = document.getElementById('uploadFlightsBtn');
+const uploadFlightsInput = document.getElementById('uploadFlightsInput');
+
+function isValidFlight(item){
+  const validCoords = coords => Array.isArray(coords) && coords.length===2 && coords.every(Number.isFinite);
+  return item && typeof item.from==='string' && typeof item.to==='string' &&
+    validCoords(item.fromCoords) && validCoords(item.toCoords);
+}
+
+if(downloadFlightsBtn){
+  downloadFlightsBtn.addEventListener('click', ()=>{
+    const blob = new Blob([JSON.stringify(loadFlights(), null, 2) + '\n'], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'flights.json';
+    link.click();
+    URL.revokeObjectURL(url);
+  });
+}
+
+if(uploadFlightsBtn && uploadFlightsInput){
+  uploadFlightsBtn.addEventListener('click', ()=>uploadFlightsInput.click());
+  uploadFlightsInput.addEventListener('change', async ()=>{
+    const file = uploadFlightsInput.files && uploadFlightsInput.files[0];
+    if(!file) return;
+    try{
+      const flights = JSON.parse(await file.text());
+      if(!Array.isArray(flights) || !flights.every(isValidFlight)){
+        throw new Error('The file must contain a valid array of travel paths.');
+      }
+      saveFlights(flights);
+      renderFlightsList();
+      renderFlights();
+      alert(`Uploaded ${flights.length} travel path${flights.length===1 ? '' : 's'}.`);
+    }catch(error){
+      alert(`Upload failed: ${error.message}`);
+    }finally{
+      uploadFlightsInput.value = '';
+    }
+  });
+}
+
+// Postcards
+const postcardForm = document.getElementById('postcardForm');
+const postcardImagesInput = document.getElementById('postcardImages');
+const imagePreview = document.getElementById('imagePreview');
+const postcardsList = document.getElementById('postcardsList');
+const postcardsEditorList = document.getElementById('postcardsEditorList');
+const postcardCancelBtn = document.getElementById('postcardCancel');
+const postcardCoverSelect = document.getElementById('postcardCoverSelect');
+const postcardModal = document.getElementById('postcardModal');
+const postcardModalClose = document.getElementById('postcardModalClose');
+const postcardModalCover = document.getElementById('postcardModalCover');
+const postcardModalTitle = document.getElementById('postcardModalTitle');
+const postcardModalDates = document.getElementById('postcardModalDates');
+const postcardModalText = document.getElementById('postcardModalText');
+const postcardModalImages = document.getElementById('postcardModalImages');
+
+const POSTCARDS_KEY = 'postcards';
+const MAX_EXTRA_IMAGES = 4;
+
+function loadPostcards(){
+  const raw = localStorage.getItem(POSTCARDS_KEY);
+  if(!raw) return [];
+  try{
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  }catch(e){
+    return [];
+  }
+}
+
+function savePostcards(items){
+  localStorage.setItem(POSTCARDS_KEY, JSON.stringify(items || []));
+}
+
+function formatPostcardDateRange(startDate, endDate){
+  if(!startDate && !endDate) return 'Dates not set';
+  if(startDate && !endDate) return formatDateLabel(startDate);
+  if(!startDate && endDate) return formatDateLabel(endDate);
+  return formatRangeLabel(startDate, endDate);
+}
+
+function escapeHtml(str){
+  return String(str || '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function renderPostcardsList(){
+  if(!postcardsList) return;
+  const cards = loadPostcards();
+  postcardsList.innerHTML = '';
+  if(cards.length===0){
+    const empty = document.createElement('div');
+    empty.className = 'postcards-list-empty';
+    empty.textContent = 'No postcards yet.';
+    postcardsList.appendChild(empty);
+    return;
+  }
+
+  cards.forEach(card=>{
+    const el = document.createElement('article');
+    el.className = 'postcard';
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+    const title = escapeHtml(card.city || 'Unknown City');
+    const cover = escapeHtml(card.coverImage || '');
+    el.innerHTML = `
+      <img src="${cover}" alt="${title} postcard cover">
+    `;
+    const open = ()=>openPostcardModal(card);
+    el.addEventListener('click', open);
+    el.addEventListener('keydown', (e)=>{
+      if(e.key==='Enter' || e.key===' '){ e.preventDefault(); open(); }
+    });
+    postcardsList.appendChild(el);
+  });
+}
+
+function renderPostcardsEditorList(){
+  if(!postcardsEditorList) return;
+  const cards = loadPostcards();
+  postcardsEditorList.innerHTML = '';
+  if(cards.length===0){
+    const li = document.createElement('li');
+    li.textContent = 'No saved postcards yet.';
+    postcardsEditorList.appendChild(li);
+    return;
+  }
+
+  cards.forEach((card, idx)=>{
+    const li = document.createElement('li');
+    li.textContent = `${card.city || 'Unknown City'} — ${formatPostcardDateRange(card.startDate, card.endDate)}`;
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.textContent = 'Delete';
+    del.addEventListener('click', ()=>{
+      const next = loadPostcards();
+      next.splice(idx, 1);
+      savePostcards(next);
+      renderPostcardsEditorList();
+      renderPostcardsList();
+    });
+    li.appendChild(del);
+    postcardsEditorList.appendChild(li);
+  });
+}
+
+function openPostcardModal(card){
+  if(!postcardModal) return;
+  postcardModalCover.src = card.coverImage || '';
+  postcardModalCover.alt = `${card.city || 'Postcard'} cover`;
+  postcardModalTitle.textContent = (card.city || 'Unknown City').toUpperCase();
+  postcardModalDates.textContent = formatPostcardDateRange(card.startDate, card.endDate);
+  postcardModalText.textContent = card.text || '';
+  postcardModalImages.innerHTML = '';
+  (card.images || []).forEach((src, i)=>{
+    const img = document.createElement('img');
+    img.src = src;
+    img.alt = `${card.city || 'Postcard'} detail image ${i+1}`;
+    postcardModalImages.appendChild(img);
+  });
+  postcardModal.style.display = 'flex';
+}
+
+function closePostcardModal(){
+  if(!postcardModal) return;
+  postcardModal.style.display = 'none';
+}
+
+async function fileToDataUrl(file){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = ()=>resolve(String(reader.result || ''));
+    reader.onerror = ()=>reject(new Error('Failed to read image'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function readImagesAsDataUrls(fileList){
+  const files = Array.from(fileList || []);
+  const items = [];
+  for(const f of files){
+    const data = await fileToDataUrl(f);
+    items.push(data);
+  }
+  return items;
+}
+
+async function loadPostcardCovers(){
+  if(!postcardCoverSelect) return;
+  const fallback = [
+    'athenspostcard.jpg',
+    'barcelonapostcard.jpg',
+    'lisbonpostcard.jpg',
+    'madridpostcard.jpg',
+    'mykonospostcard.jpg'
+  ];
+
+  let covers = fallback;
+  try{
+    const res = await fetch('assets/postcards/manifest.json');
+    if(res.ok){
+      const parsed = await res.json();
+      if(Array.isArray(parsed) && parsed.length>0) covers = parsed;
+    }
+  }catch(e){
+    // Keep fallback list when manifest is unavailable.
+  }
+
+  postcardCoverSelect.innerHTML = '<option value="">Select cover image</option>';
+  covers.forEach(name=>{
+    const opt = document.createElement('option');
+    opt.value = `assets/postcards/${name}`;
+    opt.textContent = name;
+    postcardCoverSelect.appendChild(opt);
+  });
+}
+
+if(postcardImagesInput){
+  postcardImagesInput.addEventListener('change', ()=>{
+    const files = Array.from(postcardImagesInput.files || []);
+    if(files.length > MAX_EXTRA_IMAGES){
+      alert(`Please select up to ${MAX_EXTRA_IMAGES} additional images.`);
+      postcardImagesInput.value = '';
+      imagePreview.innerHTML = '';
+      return;
+    }
+    imagePreview.innerHTML = '';
+    files.forEach(file=>{
+      const url = URL.createObjectURL(file);
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = file.name;
+      imagePreview.appendChild(img);
+    });
+  });
+}
+
+if(postcardCancelBtn){
+  postcardCancelBtn.addEventListener('click', ()=>{
+    postcardForm.reset();
+    imagePreview.innerHTML = '';
+  });
+}
+
+if(postcardForm){
+  postcardForm.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const fd = new FormData(postcardForm);
+    const city = String(fd.get('city') || '').trim();
+    const startDate = String(fd.get('startDate') || '').trim();
+    const endDate = String(fd.get('endDate') || '').trim();
+    const text = String(fd.get('text') || '').trim();
+    const coverImage = String(fd.get('coverImage') || '').trim();
+    const files = Array.from(postcardImagesInput.files || []);
+
+    if(!city){ alert('City is required.'); return; }
+    if(!coverImage){ alert('Please select a cover image from assets/postcards.'); return; }
+    if(files.length > MAX_EXTRA_IMAGES){ alert(`Please select up to ${MAX_EXTRA_IMAGES} additional images.`); return; }
+    if(startDate && endDate && new Date(endDate) < new Date(startDate)){ alert('End date must be on or after start date.'); return; }
+
+    const extraImages = await readImagesAsDataUrls(files);
+    const card = {
+      id: `pc_${Date.now()}`,
+      city,
+      startDate,
+      endDate,
+      text,
+      coverImage,
+      images: extraImages,
+      createdAt: new Date().toISOString()
+    };
+
+    const all = loadPostcards();
+    all.unshift(card);
+    savePostcards(all);
+    postcardForm.reset();
+    imagePreview.innerHTML = '';
+    renderPostcardsEditorList();
+    renderPostcardsList();
+    alert('Postcard saved.');
+  });
+}
+
+if(postcardModalClose){
+  postcardModalClose.addEventListener('click', closePostcardModal);
+}
+if(postcardModal){
+  postcardModal.addEventListener('click', (e)=>{
+    if(e.target === postcardModal) closePostcardModal();
+  });
+}
+document.addEventListener('keydown', (e)=>{
+  if(e.key==='Escape' && postcardModal && postcardModal.style.display==='flex') closePostcardModal();
+});
+
+loadPostcardCovers().then(()=>{});
+renderPostcardsEditorList();
+renderPostcardsList();
+
+// Map is the sole public view and should be ready immediately on page load.
+activateTab('map');
